@@ -299,7 +299,13 @@
         {"id": 39, "name": "発熱反応", "type": "magical", "element": "炎", "multiplier": 2.3},
         {"id": 40, "name": "テルミット反応", "type": "magical", "element": "炎", "multiplier": 2.3},
         {"id": 41, "name": "酸性雨", "type": "magical", "element": "水", "multiplier": 0.75},
-        {"id": 42, "name": "電熱線", "type": "magical", "element": "炎・電気", "multiplier": 1.6}
+        {"id": 42, "name": "電熱線", "type": "magical", "element": "炎・電気", "multiplier": 1.6},
+        {"id": 12, "name": "ヒーラン", "type": "heal", "element": "なし", "multiplier": 1.25},
+        {"id": 13, "name": "ヒーレン", "type": "heal", "element": "なし", "multiplier": 2.0},
+        {"id": 14, "name": "ヒーリン", "type": "heal", "element": "なし", "multiplier": 2.75},
+        {"id": 15, "name": "テトラヒーラン", "type": "heal", "element": "なし", "multiplier": 0.9},
+        {"id": 16, "name": "テトラヒーレン", "type": "heal", "element": "なし", "multiplier": 1.5},
+        {"id": 17, "name": "テトラヒーリン", "type": "heal", "element": "なし", "multiplier": 2.1},
       ]
     };
 
@@ -364,7 +370,10 @@
 
       let finalDamage = basePower * affinityRate * spAtkBuff * spDefBuff;
       finalDamage = Math.floor(finalDamage); 
-
+      
+      if (skill.type === 'heal') {
+        finalDamage = attacker.m_atk * atkBuff * skill.multiplier;
+      }
       let percent = (finalDamage / defender.hp) * 100;
       percent = percent.toFixed(1); 
 

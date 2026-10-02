@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <title>無機コレクト ダメージ計算</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 15px;
+      max-width: 500px;
+      margin: 0 auto;
+    }
+    
+    select, input, button {
+      font-size: 18px;
+      padding: 12px;
+      width: 100%;
+      box-sizing: border-box;
+      margin-top: 5px;
+      margin-bottom: 15px;
+    }
+
+    button {
+      background-color: #2563eb;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    #error-msg {
+      color: red;
+      font-weight: bold;
+      margin-bottom: 15px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>無機コレクト 計算ツール</h1>
+
+  <div>
+    <label>攻撃キャラ:</label>
+    <input type="text" id="attacker" placeholder="例: 水素">
+  </div>
+  
+  <div>
+    <label>使う技:</label>
+    <input type="text" id="skill" placeholder="例: 炎攻撃">
+  </div>
+  
+  <div>
+    <label>受けるキャラ:</label>
+    <input type="text" id="defender" placeholder="例: ヘリウム">
+  </div>
+
+  <div>
+    <label>火力バフ:</label>
+    <select id="atk-buff">
+      <option value="1.0">通常 (1.0倍)</option>
+      <option value="1.25">アップ (1.25倍)</option>
+      <option value="0.75">ダウン (0.75倍)</option>
+    </select>
+  </div>
+  
+  <div>
+    <label>防御バフ:</label>
+    <select id="def-buff">
+      <option value="1.0">通常 (1.0倍)</option>
+      <option value="1.25">アップ (1.25倍)</option>
+      <option value="0.75">ダウン (0.75倍)</option>
+    </select>
+  </div>
+  
+  <div>
+    <label>特性攻撃バフ:</label>
+    <input type="number" id="sp-atk-buff" value="1.0" step="0.1">
+  </div>
+  
+  <div>
+    <label>特性防御バフ:</label>
+    <input type="number" id="sp-def-buff" value="1.0" step="0.1">
+  </div>
+
+  <button onclick="calculate()">ダメージ計算</button>
+
+  <div id="error-msg"></div>
+
+  <h2>最終ダメージ: <span id="result-damage" style="color: red;">-</span></h2>
+  <h2>体力への割合: <span id="result-percent" style="color: red;">-</span> %</h2>
+
+  <script>
+    const db = {
+      "characters": [
+        {"id": 1, "name": "水素", "hp": 822, "p_atk": 377, "p_def": 214, "m_atk": 796, "m_def": 885, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 1.0}},
+        {"id": 2, "name": "ヘリウム", "hp": 911, "p_atk": 392, "p_def": 896, "m_atk": 859, "m_def": 625, "affinity": {"なし": 1.0, "炎": 0.75, "水": 0.75, "電気": 0.75}},
+        {"id": 3, "name": "アンモニア", "hp": 1740, "p_atk": 851, "p_def": 308, "m_atk": 555, "m_def": 714, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 4, "name": "塩素", "hp": 1600, "p_atk": 837, "p_def": 229, "m_atk": 488, "m_def": 648, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 5, "name": "塩化水素", "hp": 1607, "p_atk": 848, "p_def": 219, "m_atk": 492, "m_def": 333, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 6, "name": "ジュラルミン", "hp": 1459, "p_atk": 714, "p_def": 916, "m_atk": 692, "m_def": 596, "affinity": {"なし": 1.0, "炎": 1.0, "水":1.0, "電気": 1.0}},
+        {"id": 7, "name": "チタン合金", "hp": 1466, "p_atk": 718, "p_def": 901, "m_atk": 614, "m_def": 670, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 8, "name": "マグネシウム合金", "hp": 1125, "p_atk": 733, "p_def": 881, "m_atk": 577, "m_def": 674, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 9, "name": "ヨウ化水素", "hp": 1511, "p_atk": 785, "p_def": 269, "m_atk": 448, "m_def": 307, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 10, "name": "酸素", "hp": 1481, "p_atk": 651, "p_def": 402, "m_atk": 659, "m_def": 822, "affinity": {"なし": 1, "炎": 1.25, "水": 1.0, "電気": 1.25}},
+        {"id": 11, "name": "塩化銅", "hp": 1014, "p_atk": 448, "p_def": 244, "m_atk": 703, "m_def": 848, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 12, "name": "一酸化窒素", "hp": 1718, "p_atk": 725, "p_def": 362, "m_atk": 700, "m_def": 411, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 13, "name": "ニホニウム", "hp": 1333, "p_atk": 829, "p_def": 382, "m_atk": 618, "m_def": 692, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 14, "name": "フッ化水素", "hp": 1096, "p_atk": 862, "p_def": 274, "m_atk": 540, "m_def": 818, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 15, "name": "ネオン", "hp": 1000, "p_atk": 351, "p_def": 911, "m_atk": 866, "m_def": 614, "affinity": {"なし": 1.0, "炎": 0.75, "水": 0.75, "電気": 0.75}},
+        {"id": 16, "name": "三酸化硫黄", "hp": 1659, "p_atk": 759, "p_def": 264, "m_atk": 522, "m_def": 559, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 17, "name": "二酸化窒素", "hp": 1725, "p_atk": 737, "p_def": 353, "m_atk": 718, "m_def": 407, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 18, "name": "水酸化銅", "hp": 933, "p_atk": 696, "p_def": 249, "m_atk": 322, "m_def": 851, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 19, "name": "二酸化硫黄", "hp": 1651, "p_atk": 766, "p_def": 234, "m_atk": 566, "m_def": 562, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 20, "name": "黒鉛", "hp": 1177, "p_atk": 511, "p_def": 496, "m_atk": 766, "m_def": 833, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 0.75}},
+        {"id": 21, "name": "ヨウ素", "hp": 1518, "p_atk": 770, "p_def": 654, "m_atk": 374, "m_def": 488, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.25, "電気": 1.0}},
+        {"id": 22, "name": "さらし粉", "hp": 1155, "p_atk": 462, "p_def": 392, "m_atk": 825, "m_def": 807, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 23, "name": "カルシウム", "hp": 800, "p_atk": 488, "p_def": 318, "m_atk": 862, "m_def": 759, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.25, "電気": 1.0}},
+        {"id": 24, "name": "チタン", "hp": 1007, "p_atk": 811, "p_def": 822, "m_atk": 525, "m_def": 440, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 0.75}},
+        {"id": 25, "name": "フッ素", "hp": 1088, "p_atk": 503, "p_def": 200, "m_atk": 562, "m_def": 540, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 26, "name": "ダイヤモンド", "hp": 992, "p_atk": 422, "p_def": 995, "m_atk": 714, "m_def": 892, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 1.0}},
+        {"id": 27, "name": "ナトリウム", "hp": 1266, "p_atk": 492, "p_def": 323, "m_atk": 800, "m_def": 740, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.25, "電気": 1.0}},
+        {"id": 28, "name": "臭化水素", "hp": 888, "p_atk": 833, "p_def": 604, "m_atk": 844, "m_def": 470, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 29, "name": "リン酸カルシウム", "hp": 814, "p_atk": 566, "p_def": 698, "m_atk": 755, "m_def": 492, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 30, "name": "硫化水素", "hp": 962, "p_atk": 825, "p_def": 441, "m_atk": 518, "m_def": 485, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 31, "name": "過酸化水素", "hp": 1377, "p_atk": 800, "p_def": 333, "m_atk": 344, "m_def": 555, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 32, "name": "リチウム", "hp": 1029, "p_atk": 440, "p_def": 343, "m_atk": 359, "m_def": 425, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 33, "name": "濃塩酸", "hp": 1592, "p_atk": 892, "p_def": 313, "m_atk": 466, "m_def": 325, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.25}},
+        {"id": 34, "name": "アルゴン", "hp": 1148, "p_atk": 311, "p_def": 925, "m_atk": 896, "m_def": 603, "affinity": {"なし": 1.0, "炎": 0.75, "水": 0.75, "電気": 0.75}},
+        {"id": 35, "name": "水酸化鉄(Ⅲ)", "hp": 1051, "p_atk": 677, "p_def": 520, "m_atk": 407, "m_def": 314, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 36, "name": "臭素", "hp": 837, "p_atk": 562, "p_def": 432, "m_atk": 337, "m_def": 500, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 37, "name": "四酸化二窒素", "hp": 1733, "p_atk": 751, "p_def": 358, "m_atk": 707, "m_def": 403, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 38, "name": "塩化鉄(Ⅲ)", "hp": 844, "p_atk": 337, "p_def": 753, "m_atk": 740, "m_def": 322, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 39, "name": "水酸化鉄(Ⅱ)", "hp": 1059, "p_atk": 655, "p_def": 525, "m_atk": 433, "m_def": 318, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 40, "name": "一酸化炭素", "hp": 1311, "p_atk": 581, "p_def": 397, "m_atk": 744, "m_def": 477, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 1.0}},
+        {"id": 41, "name": "カリウム", "hp": 1437, "p_atk": 551, "p_def": 328, "m_atk": 648, "m_def": 755, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.25, "電気": 0.75}},
+        {"id": 42, "name": "窒素", "hp": 1711, "p_atk": 500, "p_def": 782, "m_atk": 681, "m_def": 462, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.25, "電気": 1.0}},
+        {"id": 43, "name": "オゾン", "hp": 1318, "p_atk": 681, "p_def": 377, "m_atk": 788, "m_def": 525, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 0.75}},
+        {"id": 44, "name": "アルミニウム", "hp": 1703, "p_atk": 659, "p_def": 797, "m_atk": 885, "m_def": 881, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 45, "name": "カーボンナノチューブ", "hp": 807, "p_atk": 314, "p_def": 506, "m_atk": 840, "m_def": 870, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 1.0}},
+        {"id": 46, "name": "高度さらし粉", "hp": 1622, "p_atk": 522, "p_def": 501, "m_atk": 892, "m_def": 855, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 47, "name": "ストロンチウム", "hp": 1933, "p_atk": 381, "p_def": 580, "m_atk": 622, "m_def": 418, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 1.0}},
+        {"id": 48, "name": "酸化チタン", "hp": 1288, "p_atk": 507, "p_def": 817, "m_atk": 462, "m_def": 700, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 0.75}},
+        {"id": 49, "name": "二酸化炭素", "hp": 1488, "p_atk": 603, "p_def": 812, "m_atk": 722, "m_def": 577, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 50, "name": "水酸化ナトリウム", "hp": 829, "p_atk": 881, "p_def": 629, "m_atk": 644, "m_def": 703, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 51, "name": "二酸化ケイ素", "hp": 851, "p_atk": 425, "p_def": 970, "m_atk": 792, "m_def": 455, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 52, "name": "ケイ素", "hp": 1118, "p_atk": 333, "p_def": 866, "m_atk": 874, "m_def": 788, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 0.75}},
+        {"id": 53, "name": "次亜塩素酸", "hp": 1162, "p_atk": 855, "p_def": 545, "m_atk": 548, "m_def": 888, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 54, "name": "希硫酸", "hp": 1422, "p_atk": 877, "p_def": 466, "m_atk": 481, "m_def": 581, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 55, "name": "希硝酸", "hp": 1244, "p_atk": 870, "p_def": 476, "m_atk": 507, "m_def": 585, "affinity": {"なし": 1.0, "炎": 1.0, "水": 0.75, "電気": 1.0}},
+        {"id": 56, "name": "王水", "hp": 1629, "p_atk": 896, "p_def": 560, "m_atk": 640, "m_def": 588, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 57, "name": "炭酸", "hp": 1081, "p_atk": 625, "p_def": 516, "m_atk": 592, "m_def": 729, "affinity": {"なし": 1.0, "炎": 1.25, "水": 0.75, "電気": 1.0}},
+        {"id": 58, "name": "水", "hp": 985, "p_atk": 322, "p_def": 338, "m_atk": 881, "m_def": 866, "affinity": {"なし": 1.0, "炎": 1.0, "水": 0.75, "電気": 1.25}},
+        {"id": 59, "name": "ヨウ化カリウム", "hp": 1074, "p_atk": 359, "p_def": 259, "m_atk": 759, "m_def": 544, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 0.75}},
+        {"id": 60, "name": "濃硝酸", "hp": 1637, "p_atk": 888, "p_def": 624, "m_atk": 544, "m_def": 644, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 61, "name": "炭酸水素カルシウム", "hp": 940, "p_atk": 466, "p_def": 437, "m_atk": 651, "m_def": 348, "affinity": {"なし": 1.0, "炎": 1.0, "水": 0.75, "電気": 1.0}},
+        {"id": 62, "name": "塩化スズ(Ⅱ)", "hp": 1348, "p_atk": 418, "p_def": 372, "m_atk": 818, "m_def": 385, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 63, "name": "クロム酸カリウム", "hp": 1214, "p_atk": 355, "p_def": 777, "m_atk": 437, "m_def": 422, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 64, "name": "炭酸ナトリウム", "hp": 1362, "p_atk": 729, "p_def": 471, "m_atk": 774, "m_def": 681, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 65, "name": "リン酸", "hp": 1037, "p_atk": 755, "p_def": 283, "m_atk": 429, "m_def": 814, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 66, "name": "塩化スズ(Ⅳ)", "hp": 1340, "p_atk": 414, "p_def": 387, "m_atk": 711, "m_def": 688, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 67, "name": "ゴム状硫黄", "hp": 1281, "p_atk": 525, "p_def": 550, "m_atk": 733, "m_def": 874, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 68, "name": "炭酸水素ナトリウム", "hp": 1370, "p_atk": 674, "p_def": 427, "m_atk": 870, "m_def": 677, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 1.0}},
+        {"id": 69, "name": "焼セッコウ", "hp": 1762, "p_atk": 644, "p_def": 955, "m_atk": 751, "m_def": 655, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.25, "電気": 1.0}},
+        {"id": 70, "name": "希塩酸", "hp": 1614, "p_atk": 885, "p_def": 530, "m_atk": 500, "m_def": 329, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.25}},
+        {"id": 71, "name": "サファイア", "hp": 1814, "p_atk": 533, "p_def": 975, "m_atk": 822, "m_def": 696, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 72, "name": "斜方硫黄", "hp": 1548, "p_atk": 622, "p_def": 708, "m_atk": 455, "m_def": 666, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 1.0}},
+        {"id": 73, "name": "単斜硫黄", "hp": 1444, "p_atk": 818, "p_def": 649, "m_atk": 355, "m_def": 659, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 1.0}},
+        {"id": 74, "name": "セシウム", "hp": 1325, "p_atk": 814, "p_def": 293, "m_atk": 537, "m_def": 707, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 75, "name": "赤リン", "hp": 1229, "p_atk": 596, "p_def": 570, "m_atk": 777, "m_def": 744, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 1.0}},
+        {"id": 76, "name": "黄リン", "hp": 1407, "p_atk": 685, "p_def": 481, "m_atk": 770, "m_def": 737, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 1.0}},
+        {"id": 77, "name": "十酸化四リン", "hp": 1585, "p_atk": 796, "p_def": 422, "m_atk": 762, "m_def": 711, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 78, "name": "酸化鉛(Ⅳ)", "hp": 1192, "p_atk": 577, "p_def": 674, "m_atk": 392, "m_def": 733, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 79, "name": "ルビー", "hp": 1822, "p_atk": 555, "p_def": 985, "m_atk": 855, "m_def": 722, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 80, "name": "水酸化カリウム", "hp": 903, "p_atk": 844, "p_def": 254, "m_atk": 474, "m_def": 303, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 81, "name": "謎の物質", "hp": 1400, "p_atk": 600, "p_def": 600, "m_atk": 600, "m_def": 600, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 82, "name": "セッコウ", "hp": 1770, "p_atk": 633, "p_def": 886, "m_atk": 585, "m_def": 862, "affinity": {"なし": 1.0, "炎": 1.25, "水": 0.75, "電気": 1.0}},
+        {"id": 83, "name": "酸化鉛(Ⅱ)", "hp": 1185, "p_atk": 559, "p_def": 417, "m_atk": 396, "m_def": 651, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 84, "name": "過マンガン酸カリウム", "hp": 1066, "p_atk": 788, "p_def": 451, "m_atk": 444, "m_def": 437, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 85, "name": "ヘキサフルオロケイ酸", "hp": 874, "p_atk": 470, "p_def": 348, "m_atk": 748, "m_def": 618, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 86, "name": "塩化セシウム", "hp": 1474, "p_atk": 744, "p_def": 767, "m_atk": 418, "m_def": 429, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 87, "name": "水酸化亜鉛", "hp": 881, "p_atk": 711, "p_def": 595, "m_atk": 451, "m_def": 877, "affinity": {"なし": 1.0, "炎": 1.0, "水": 0.75, "電気": 1.0}},
+        {"id": 88, "name": "ステンレス鋼", "hp": 1451, "p_atk": 840, "p_def": 940, "m_atk": 529, "m_def": 629, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 89, "name": "クロム", "hp": 1948, "p_atk": 670, "p_def": 876, "m_atk": 362, "m_def": 377, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 90, "name": "フッ化銀", "hp": 1133, "p_atk": 688, "p_def": 279, "m_atk": 677, "m_def": 762, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 91, "name": "硝酸銀", "hp": 1874, "p_atk": 781, "p_def": 703, "m_atk": 603, "m_def": 774, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 92, "name": "ニクロム", "hp": 1259, "p_atk": 348, "p_def": 930, "m_atk": 888, "m_def": 896, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 93, "name": "濃硫酸", "hp": 1429, "p_atk": 874, "p_def": 688, "m_atk": 625, "m_def": 574, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 94, "name": "ケイ酸ナトリウム", "hp": 1570, "p_atk": 529, "p_def": 511, "m_atk": 737, "m_def": 662, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 95, "name": "銀", "hp": 1977, "p_atk": 433, "p_def": 960, "m_atk": 807, "m_def": 607, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 96, "name": "硫化銀", "hp": 1866, "p_atk": 666, "p_def": 639, "m_atk": 411, "m_def": 766, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 97, "name": "塩化ナトリウム", "hp": 1303, "p_atk": 370, "p_def": 758, "m_atk": 400, "m_def": 459, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 98, "name": "クロム酸銀", "hp": 1044, "p_atk": 540, "p_def": 728, "m_atk": 422, "m_def": 785, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 99, "name": "塩化銀", "hp": 1881, "p_atk": 607, "p_def": 683, "m_atk": 696, "m_def": 777, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 100, "name": "青銅", "hp": 1533, "p_atk": 792, "p_def": 846, "m_atk": 514, "m_def": 637, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 101, "name": "プラチナ", "hp": 1992, "p_atk": 570, "p_def": 990, "m_atk": 814, "m_def": 748, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 102, "name": "バナジウム", "hp": 1392, "p_atk": 437, "p_def": 802, "m_atk": 833, "m_def": 392, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 103, "name": "ヨウ化銀", "hp": 1896, "p_atk": 640, "p_def": 609, "m_atk": 688, "m_def": 770, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 104, "name": "臭化銀", "hp": 1888, "p_atk": 574, "p_def": 669, "m_atk": 670, "m_def": 781, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 105, "name": "炭酸カルシウム", "hp": 948, "p_atk": 374, "p_def": 832, "m_atk": 633, "m_def": 466, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 106, "name": "チオシアン酸カリウム", "hp": 925, "p_atk": 803, "p_def": 412, "m_atk": 381, "m_def": 481, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 107, "name": "塩化鉛", "hp": 1688, "p_atk": 588, "p_def": 224, "m_atk": 351, "m_def": 518, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 108, "name": "塩化アンモニウム", "hp": 1748, "p_atk": 807, "p_def": 298, "m_atk": 459, "m_def": 522, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 109, "name": "フラーレン", "hp": 1800, "p_atk": 614, "p_def": 762, "m_atk": 607, "m_def": 474, "affinity": {"なし": 1.0, "炎": 1.25, "水": 1.0, "電気": 0.75}},
+        {"id": 110, "name": "硫酸鉛", "hp": 1674, "p_atk": 585, "p_def": 204, "m_atk": 300, "m_def": 511, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 111, "name": "ボーキサイト", "hp": 1696, "p_atk": 648, "p_def": 891, "m_atk": 477, "m_def": 496, "affinity": {"なし": 1.0, "炎": 1.25, "水": 0.75, "電気": 0.75}},
+        {"id": 112, "name": "水酸化鉛", "hp": 1666, "p_atk": 703, "p_def": 239, "m_atk": 307, "m_def": 507, "affinity": {"なし": 1.0, "炎": 1.0, "水": 0.75, "電気": 1.0}},
+        {"id": 113, "name": "硫化鉛", "hp": 1681, "p_atk": 592, "p_def": 209, "m_atk": 329, "m_def": 514, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 114, "name": "塩化マグネシウム", "hp": 1414, "p_atk": 303, "p_def": 772, "m_atk": 503, "m_def": 433, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 115, "name": "マンガン", "hp": 1525, "p_atk": 400, "p_def": 807, "m_atk": 674, "m_def": 444, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 116, "name": "ベリリウム", "hp": 1562, "p_atk": 748, "p_def": 456, "m_atk": 551, "m_def": 548, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 1.0}},
+        {"id": 117, "name": "バリウム", "hp": 1555, "p_atk": 474, "p_def": 486, "m_atk": 377, "m_def": 551, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 1.0}},
+        {"id": 118, "name": "塩化カルシウム", "hp": 1140, "p_atk": 300, "p_def": 634, "m_atk": 511, "m_def": 840, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 119, "name": "アマルガム", "hp": 1777, "p_atk": 637, "p_def": 792, "m_atk": 877, "m_def": 837, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 120, "name": "硫酸カルシウム", "hp": 1755, "p_atk": 325, "p_def": 723, "m_atk": 403, "m_def": 351, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 121, "name": "硫酸銅五水和物", "hp": 1207, "p_atk": 459, "p_def": 575, "m_atk": 803, "m_def": 366, "affinity": {"なし": 1.0, "炎": 1.25, "水": 0.75, "電気": 1.0}},
+        {"id": 122, "name": "硫酸銅", "hp": 1200, "p_atk": 455, "p_def": 565, "m_atk": 685, "m_def": 362, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 123, "name": "ゲルマニウム", "hp": 1792, "p_atk": 722, "p_def": 738, "m_atk": 662, "m_def": 633, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 124, "name": "ガリウム", "hp": 1785, "p_atk": 707, "p_def": 733, "m_atk": 588, "m_def": 622, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 125, "name": "酸化銅(Ⅱ)", "hp": 1111, "p_atk": 481, "p_def": 718, "m_atk": 311, "m_def": 451, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 126, "name": "酸化亜鉛", "hp": 866, "p_atk": 362, "p_def": 446, "m_atk": 348, "m_def": 414, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 127, "name": "硫化カドミウム", "hp": 1237, "p_atk": 329, "p_def": 659, "m_atk": 333, "m_def": 400, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 128, "name": "ニッケル", "hp": 1807, "p_atk": 485, "p_def": 841, "m_atk": 811, "m_def": 396, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 1.0}},
+        {"id": 129, "name": "酸化鉄(Ⅲ)", "hp": 1829, "p_atk": 548, "p_def": 679, "m_atk": 325, "m_def": 388, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 130, "name": "スズ", "hp": 977, "p_atk": 518, "p_def": 920, "m_atk": 729, "m_def": 570, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 131, "name": "水酸化カルシウム", "hp": 896, "p_atk": 866, "p_def": 743, "m_atk": 425, "m_def": 340, "affinity": {"なし": 1.0, "炎": 1.0, "水": 0.75, "電気": 1.0}},
+        {"id": 132, "name": "酸化スズ", "hp": 970, "p_atk": 514, "p_def": 367, "m_atk": 581, "m_def": 566, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 133, "name": "水酸化マグネシウム", "hp": 1911, "p_atk": 740, "p_def": 303, "m_atk": 470, "m_def": 796, "affinity": {"なし": 1.0, "炎": 1.0, "水": 0.75, "電気": 1.0}},
+        {"id": 134, "name": "銅", "hp": 1496, "p_atk": 496, "p_def": 851, "m_atk": 851, "m_def": 859, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 135, "name": "酸化銅(Ⅰ)", "hp": 1103, "p_atk": 477, "p_def": 713, "m_atk": 314, "m_def": 448, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 136, "name": "四酸化三鉄", "hp": 1844, "p_atk": 611, "p_def": 664, "m_atk": 370, "m_def": 381, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 0.75}},
+        {"id": 137, "name": "鉄", "hp": 1851, "p_atk": 700, "p_def": 871, "m_atk": 655, "m_def": 374, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 1.0}},
+        {"id": 138, "name": "酸化鉄(Ⅱ)", "hp": 1837, "p_atk": 662, "p_def": 693, "m_atk": 340, "m_def": 370, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 0.75}},
+        {"id": 139, "name": "硫酸バリウム", "hp": 1355, "p_atk": 537, "p_def": 590, "m_atk": 440, "m_def": 359, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 140, "name": "酸化アルミニウム", "hp": 1859, "p_atk": 429, "p_def": 787, "m_atk": 559, "m_def": 355, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 141, "name": "クロム酸鉛", "hp": 1274, "p_atk": 411, "p_def": 535, "m_atk": 388, "m_def": 811, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 142, "name": "クロム酸バリウム", "hp": 1274, "p_atk": 411, "p_def": 535, "m_atk": 388, "m_def": 811, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 143, "name": "硫化亜鉛", "hp": 918, "p_atk": 629, "p_def": 585, "m_atk": 303, "m_def": 533, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 144, "name": "酸化カルシウム", "hp": 859, "p_atk": 318, "p_def": 748, "m_atk": 596, "m_def": 344, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 145, "name": "カドミウム", "hp": 1170, "p_atk": 859, "p_def": 861, "m_atk": 570, "m_def": 337, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 146, "name": "硫化銅", "hp": 1296, "p_atk": 444, "p_def": 540, "m_atk": 366, "m_def": 844, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 147, "name": "酸化マグネシウム", "hp": 1918, "p_atk": 544, "p_def": 614, "m_atk": 414, "m_def": 800, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.25, "電気": 1.0}},
+        {"id": 148, "name": "マグネシウム", "hp": 1222, "p_atk": 388, "p_def": 407, "m_atk": 781, "m_def": 825, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.25, "電気": 1.0}},
+        {"id": 149, "name": "硫化マンガン", "hp": 1503, "p_atk": 385, "p_def": 644, "m_atk": 629, "m_def": 300, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 150, "name": "二酸化マンガン", "hp": 1251, "p_atk": 340, "p_def": 288, "m_atk": 637, "m_def": 803, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 151, "name": "水ガラス", "hp": 1577, "p_atk": 451, "p_def": 619, "m_atk": 829, "m_def": 718, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 152, "name": "ケイ酸", "hp": 1955, "p_atk": 822, "p_def": 491, "m_atk": 574, "m_def": 611, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 153, "name": "水銀", "hp": 955, "p_atk": 777, "p_def": 461, "m_atk": 725, "m_def": 725, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 154, "name": "亜鉛", "hp": 1385, "p_atk": 618, "p_def": 837, "m_atk": 318, "m_def": 537, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 155, "name": "タングステン", "hp": 1940, "p_atk": 396, "p_def": 965, "m_atk": 837, "m_def": 529, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 156, "name": "ブリキ", "hp": 1970, "p_atk": 762, "p_def": 935, "m_atk": 485, "m_def": 640, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.25, "電気": 0.75}},
+        {"id": 157, "name": "トタン", "hp": 1962, "p_atk": 692, "p_def": 980, "m_atk": 496, "m_def": 592, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.25, "電気": 0.75}},
+        {"id": 158, "name": "黄銅", "hp": 1540, "p_atk": 774, "p_def": 827, "m_atk": 611, "m_def": 751, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 159, "name": "鉛", "hp": 1903, "p_atk": 344, "p_def": 945, "m_atk": 533, "m_def": 503, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.0, "電気": 0.75}},
+        {"id": 160, "name": "金", "hp": 1985, "p_atk": 403, "p_def": 906, "m_atk": 785, "m_def": 829, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 161, "name": "シリカゲル", "hp": 1644, "p_atk": 366, "p_def": 950, "m_atk": 848, "m_def": 685, "affinity": {"なし": 1.0, "炎": 0.75, "水": 1.25, "電気": 1.0}},
+        {"id": 162, "name": "ウラン", "hp": 1968, "p_atk": 813, "p_def": 734, "m_atk": 598, "m_def": 609, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 1.0}},
+        {"id": 163, "name": "硫化鉄", "hp": 1925, "p_atk": 307, "p_def": 856, "m_atk": 666, "m_def": 311, "affinity": {"なし": 1.0, "炎": 1.0, "水": 1.0, "電気": 0.75}}
+      ],
+      "skills": [
+        {"id": 1, "name": "全体攻撃", "type": "physical", "element": "なし", "multiplier": 0.6},
+        {"id": 2, "name": "エントロピー増大", "type": "physical", "element": "なし", "multiplier": 0.5},
+        {"id": 3, "name": "炎攻撃", "type": "physical", "element": "炎", "multiplier": 1.25},
+        {"id": 4, "name": "水攻撃", "type": "physical", "element": "水", "multiplier": 1.25},
+        {"id": 5, "name": "電気攻撃", "type": "physical", "element": "電気", "multiplier": 1.25},
+        {"id": 6, "name": "軽金属攻撃", "type": "physical", "element": "なし", "multiplier": 0.75},
+        {"id": 7, "name": "重金属攻撃", "type": "physical", "element": "なし", "multiplier": 1.5},
+        {"id": 8, "name": "漂白作用", "type": "physical", "element": "なし", "multiplier": 2.0},
+        {"id": 9, "name": "鍾乳石", "type": "physical", "element": "なし", "multiplier": 2.7},
+        {"id": 10, "name": "ニトロ化爆弾", "type": "physical", "element": "炎", "multiplier": 2.5},
+        {"id": 11, "name": "水素爆発", "type": "physical", "element": "炎", "multiplier": 1.0},
+        {"id": 12, "name": "フレイマン", "type": "magical", "element": "炎", "multiplier": 1.25},
+        {"id": 13, "name": "フレイメン", "type": "magical", "element": "炎", "multiplier": 2.0},
+        {"id": 14, "name": "フレイミン", "type": "magical", "element": "炎", "multiplier": 2.75},
+        {"id": 15, "name": "テトラフレイマン", "type": "magical", "element": "炎", "multiplier": 0.9},
+        {"id": 16, "name": "テトラフレイメン", "type": "magical", "element": "炎", "multiplier": 1.5},
+        {"id": 17, "name": "テトラフレイミン", "type": "magical", "element": "炎", "multiplier": 2.1},
+        {"id": 18, "name": "ウォータン", "type": "magical", "element": "水", "multiplier": 1.25},
+        {"id": 19, "name": "ウォーテン", "type": "magical", "element": "水", "multiplier": 2.0},
+        {"id": 20, "name": "ウォーチン", "type": "magical", "element": "水", "multiplier": 2.75},
+        {"id": 21, "name": "テトラウォータン", "type": "magical", "element": "水", "multiplier": 0.9},
+        {"id": 22, "name": "テトラウォーテン", "type": "magical", "element": "水", "multiplier": 1.5},
+        {"id": 23, "name": "テトラウォーチン", "type": "magical", "element": "水", "multiplier": 2.1},
+        {"id": 24, "name": "エレカン", "type": "magical", "element": "電気", "multiplier": 1.25},
+        {"id": 25, "name": "エレケン", "type": "magical", "element": "電気", "multiplier": 2.0},
+        {"id": 26, "name": "エレキン", "type": "magical", "element": "電気", "multiplier": 2.75},
+        {"id": 27, "name": "テトラエレカン", "type": "magical", "element": "電気", "multiplier": 0.9},
+        {"id": 28, "name": "テトラエレケン", "type": "magical", "element": "電気", "multiplier": 1.5},
+        {"id": 29, "name": "テトラエレキン", "type": "magical", "element": "電気", "multiplier": 2.1},
+        {"id": 30, "name": "炎色反応", "type": "magical", "element": "炎", "multiplier": 2.0},
+        {"id": 31, "name": "高圧水鉄砲", "type": "magical", "element": "水", "multiplier": 2.0},
+        {"id": 32, "name": "自由電子", "type": "magical", "element": "電気", "multiplier": 2.0},
+        {"id": 33, "name": "還元", "type": "magical", "element": "なし", "multiplier": 1.2},
+        {"id": 34, "name": "酸化", "type": "magical", "element": "なし", "multiplier": 1.2},
+        {"id": 35, "name": "王水の酸化", "type": "magical", "element": "なし", "multiplier": 1.5},
+        {"id": 36, "name": "陽イオン化", "type": "magical", "element": "なし", "multiplier": 1.5},
+        {"id": 37, "name": "陰イオン化", "type": "magical", "element": "なし", "multiplier": 1.5},
+        {"id": 38, "name": "温暖化", "type": "magical", "element": "炎", "multiplier": 1.0},
+        {"id": 39, "name": "発熱反応", "type": "magical", "element": "炎", "multiplier": 2.3},
+        {"id": 40, "name": "テルミット反応", "type": "magical", "element": "炎", "multiplier": 2.3},
+        {"id": 41, "name": "酸性雨", "type": "magical", "element": "水", "multiplier": 0.75},
+        {"id": 42, "name": "電熱線", "type": "magical", "element": "炎・電気", "multiplier": 1.6}
+      ]
+    };
+
+    function calculate() {
+      document.getElementById('error-msg').textContent = "";
+      document.getElementById('result-damage').textContent = "-";
+      document.getElementById('result-percent').textContent = "-";
+
+      const attackerName = document.getElementById('attacker').value.trim();
+      const defenderName = document.getElementById('defender').value.trim();
+      const skillName = document.getElementById('skill').value.trim();
+
+      const attacker = db.characters.find(c => c.name === attackerName);
+      const defender = db.characters.find(c => c.name === defenderName);
+      const skill = db.skills.find(s => s.name === skillName);
+
+      if (!attacker) {
+        document.getElementById('error-msg').textContent = `攻撃キャラ「${attackerName}」がデータベースにありません。`;
+        return;
+      }
+      if (!skill) {
+        document.getElementById('error-msg').textContent = `技「${skillName}」がデータベースにありません。`;
+        return;
+      }
+      if (!defender) {
+        document.getElementById('error-msg').textContent = `受けるキャラ「${defenderName}」がデータベースにありません。`;
+        return;
+      }
+
+      const atkBuff = Number(document.getElementById('atk-buff').value);
+      const defBuff = Number(document.getElementById('def-buff').value);
+      const spAtkBuff = Number(document.getElementById('sp-atk-buff').value);
+      const spDefBuff = Number(document.getElementById('sp-def-buff').value);
+
+      // 物理・魔法の判定
+      let atk = 0;
+      let def = 0;
+
+      if (skill.type === 'physical') {
+        atk = attacker.p_atk;
+        def = defender.p_def;
+      } else {
+        atk = attacker.m_atk;
+        def = defender.m_def;
+      }
+
+      // 属性相性計算
+      let affinityRate = 1.0;
+      if (skill.element && skill.element !== 'なし') {
+        const elements = skill.element.split('・');
+        elements.forEach(elem => {
+          if (defender.affinity && defender.affinity[elem] !== undefined) {
+            affinityRate *= defender.affinity[elem];
+          }
+        });
+      }
+
+      // ダメージ計算
+      const top = Math.pow((atk * atkBuff * skill.multiplier), 2); 
+      const bottom = (def * defBuff * 3) + (atk * atkBuff * skill.multiplier); 
+      const basePower = top / bottom;
+
+      let finalDamage = basePower * affinityRate * spAtkBuff * spDefBuff;
+      finalDamage = Math.floor(finalDamage); 
+
+      let percent = (finalDamage / defender.hp) * 100;
+      percent = percent.toFixed(1); 
+
+      document.getElementById('result-damage').textContent = finalDamage;
+      document.getElementById('result-percent').textContent = percent;
+    }
+  </script>
+
+</body>
+</html>
